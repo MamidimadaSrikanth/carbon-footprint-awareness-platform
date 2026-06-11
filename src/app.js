@@ -49,8 +49,7 @@ function loadState() {
       selectedActions: Array.isArray(parsed.selectedActions) ? parsed.selectedActions : [],
       completedActions: Array.isArray(parsed.completedActions) ? parsed.completedActions : []
     };
-  } catch (error) {
-    console.error("Failed to load state from localStorage:", error);
+  } catch {
     return {
       profile: { ...DEFAULT_PROFILE },
       selectedActions: [],
@@ -66,8 +65,8 @@ function loadState() {
 function saveState() {
   try {
     localStorage.setItem(storageKey, JSON.stringify(state));
-  } catch (error) {
-    console.error("Failed to save state to localStorage:", error);
+  } catch {
+    console.warn("Failed to save state to localStorage.");
   }
 }
 
