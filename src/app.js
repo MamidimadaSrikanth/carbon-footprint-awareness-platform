@@ -15,10 +15,34 @@ const toast = document.querySelector("#toast");
 const fields = form ? [...form.elements].filter((element) => element.name) : [];
 
 /**
+ * Cached DOM element references.
+ * Prevents repeating querySelector calls for performance during real-time rendering.
+ */
+const elements = {
+  annualTotal: document.querySelector("#annual-total"),
+  largestSource: document.querySelector("#largest-source"),
+  largestSourceDetail: document.querySelector("#largest-source-detail"),
+  plannedSavings: document.querySelector("#planned-savings"),
+  completedActions: document.querySelector("#completed-actions"),
+  completionDetail: document.querySelector("#completion-detail"),
+  categoryBars: document.querySelector("#category-bars"),
+  insightList: document.querySelector("#insight-list"),
+  actionList: document.querySelector("#action-list"),
+  saveProfileBtn: document.querySelector("#save-profile"),
+  resetActionsBtn: document.querySelector("#reset-actions")
+};
+
+/**
  * Tracks the last recorded largest category key to avoid redundant re-renders of the actions view.
  * @type {string|null}
  */
 let lastLargestKey = null;
+
+/**
+ * Tracks whether a visual update rendering pass is currently scheduled.
+ * @type {boolean}
+ */
+let renderPending = false;
 
 const state = loadState();
 
@@ -101,12 +125,11 @@ function bindForm() {
   form.addEventListener("input", () => {
     state.profile = getProfileFromForm();
     fields.forEach(updateOutput);
-    renderOverview();
+    scheduleRenderOverview();
   });
 
-  const saveBtn = document.querySelector("#save-profile");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", () => {
+  if (elements.saveProfileBtn) {
+    elements.saveProfileBtn.addEventListener("click", () => {
       state.profile = getProfileFromForm();
       saveState();
       showToast("Profile saved locally.");
@@ -118,9 +141,8 @@ function bindForm() {
  * Binds event listeners for selecting and completing actions in the actions tab.
  */
 function bindActions() {
-  const actionList = document.querySelector("#action-list");
-  if (actionList) {
-    actionList.addEventListener("change", (event) => {
+  if (elements.actionList) {
+    elements.actionList.addEventListener("change", (event) => {
       const input = event.target;
       if (!(input instanceof HTMLInputElement)) return;
 
@@ -136,13 +158,12 @@ function bindActions() {
         }
       }
       saveState();
-      renderOverview();
+      scheduleRenderOverview();
     });
   }
 
-  const resetBtn = document.querySelector("#reset-actions");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
+  if (elements.resetActionsBtn) {
+    elements.resetActionsBtn.addEventListener("click", () => {
       state.selectedActions = [];
       state.completedActions = [];
       saveState();
@@ -178,6 +199,18 @@ function showView(name) {
 }
 
 /**
+ * Schedules a render pass on the next animation frame to optimize slider dragging performance.
+ */
+function scheduleRenderOverview() {
+  if (renderPending) return;
+  renderPending = true;
+  requestAnimationFrame(() => {
+    renderOverview();
+    renderPending = false;
+  });
+}
+
+/**
  * Triggers a full UI render (overview and action list).
  * Resets the last active category tracker to ensure a consistent initial render of the action list.
  */
@@ -197,26 +230,15 @@ function renderOverview() {
   const savings = calculateActionSavings(state.selectedActions);
   const completed = state.completedActions.length;
 
-  const annualTotalEl = document.querySelector("#annual-total");
-  if (annualTotalEl) annualTotalEl.textContent = `${estimate.totalTonnes.toFixed(1)} t`;
-
-  const largestSourceEl = document.querySelector("#largest-source");
-  if (largestSourceEl) largestSourceEl.textContent = estimate.largestLabel;
-
-  const largestSourceDetailEl = document.querySelector("#largest-source-detail");
-  if (largestSourceDetailEl) {
-    largestSourceDetailEl.textContent = `${formatKg(estimate.categories[estimate.largestKey])} kg CO2e yearly`;
+  if (elements.annualTotal) elements.annualTotal.textContent = `${estimate.totalTonnes.toFixed(1)} t`;
+  if (elements.largestSource) elements.largestSource.textContent = estimate.largestLabel;
+  if (elements.largestSourceDetail) {
+    elements.largestSourceDetail.textContent = `${formatKg(estimate.categories[estimate.largestKey])} kg CO2e yearly`;
   }
-
-  const plannedSavingsEl = document.querySelector("#planned-savings");
-  if (plannedSavingsEl) plannedSavingsEl.textContent = `${formatKg(savings)} kg`;
-
-  const completedActionsEl = document.querySelector("#completed-actions");
-  if (completedActionsEl) completedActionsEl.textContent = String(completed);
-
-  const completionDetailEl = document.querySelector("#completion-detail");
-  if (completionDetailEl) {
-    completionDetailEl.textContent = `${completed} of ${ACTIONS.length} actions completed`;
+  if (elements.plannedSavings) elements.plannedSavings.textContent = `${formatKg(savings)} kg`;
+  if (elements.completedActions) elements.completedActions.textContent = String(completed);
+  if (elements.completionDetail) {
+    elements.completionDetail.textContent = `${completed} of ${ACTIONS.length} actions completed`;
   }
 
   renderBars(estimate);
@@ -235,9 +257,8 @@ function renderOverview() {
  * @param {object} estimate - The calculated carbon footprint estimate object.
  */
 function renderBars(estimate) {
-  const container = document.querySelector("#category-bars");
-  if (!container) return;
-  container.replaceChildren();
+  if (!elements.categoryBars) return;
+  elements.categoryBars.replaceChildren();
 
   const fragment = document.createDocumentFragment();
 
@@ -263,16 +284,15 @@ function renderBars(estimate) {
     fragment.append(item);
   });
 
-  container.append(fragment);
+  elements.categoryBars.append(fragment);
 }
 
 /**
  * Renders personalized insights in the dashboard based on profile data and selected actions.
  */
 function renderInsights() {
-  const list = document.querySelector("#insight-list");
-  if (!list) return;
-  list.replaceChildren();
+  if (!elements.insightList) return;
+  elements.insightList.replaceChildren();
 
   const fragment = document.createDocumentFragment();
 
@@ -282,7 +302,7 @@ function renderInsights() {
     fragment.append(item);
   });
 
-  list.append(fragment);
+  elements.insightList.append(fragment);
 }
 
 /**
@@ -290,9 +310,8 @@ function renderInsights() {
  * Uses DocumentFragment to optimize insertion performance.
  */
 function renderActions() {
-  const container = document.querySelector("#action-list");
-  if (!container) return;
-  container.replaceChildren();
+  if (!elements.actionList) return;
+  elements.actionList.replaceChildren();
 
   const fragment = document.createDocumentFragment();
 
@@ -323,7 +342,7 @@ function renderActions() {
     fragment.append(item);
   });
 
-  container.append(fragment);
+  elements.actionList.append(fragment);
 }
 
 /**
